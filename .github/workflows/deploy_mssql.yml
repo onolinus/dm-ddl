@@ -1,0 +1,46 @@
+name: Deploy MSSQL
+on: { push: { branches: [ dev, main ] } }
+
+jobs:
+  mssql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo ACCEPT_EULA=Y apt-get update && sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev jq
+      - name: Determine ENV
+        id: envmap
+        run: echo "ENV=$([ '${{ github.ref_name }}' = 'main' ] && echo bau || echo sit)" >> $GITHUB_OUTPUT
+      - name: Load config
+        run: echo '${{ secrets.DB_CONFIG_JSON }}' > /tmp/db.json
+      - name: Lint MSSQL
+        run: pip install sqlfluff && sqlfluff lint --dialect tsql migrations/mssql/${{ steps.envmap.outputs.ENV }}/
+      - name: Deploy per domain
+        shell: bash
+        run: |
+          set -e
+          ENV="${{ steps.envmap.outputs.ENV }}"
+          for d in migrations/mssql/$ENV/*/ ; do
+            DOMAIN=$(basename "$d")
+            HOST=$(jq -r "."$ENV".mssql."$DOMAIN".host" /tmp/db.json)
+            [ "$HOST" = "null" ] && echo "Skip $DOMAIN (no config)" && continue
+            PORT=$(jq -r "."$ENV".mssql."$DOMAIN".port" /tmp/db.json)
+            DB=$(jq -r "."$ENV".mssql."$DOMAIN".db" /tmp/db.json)
+            USER=$(jq -r "."$ENV".mssql."$DOMAIN".user" /tmp/db.json)
+            PASS=$(jq -r "."$ENV".mssql."$DOMAIN".password" /tmp/db.json)
+
+            /opt/mssql-tools18/bin/sqlcmd -C -S "$HOST,$PORT" -d "$DB" -U "$USER" -P "$PASS" -v DOMAIN="$DOMAIN" -i bootstrap/mssql_bootstrap.sql
+
+            /opt/mssql-tools18/bin/sqlcmd -C -S "$HOST,$PORT" -d "$DB" -U "$USER" -P "$PASS" -h -1 -W -Q "SET NOCOUNT ON; SELECT filename FROM dbo.schema_version__${DOMAIN};" > /tmp/applied_${DOMAIN}.txt || true
+            ls -1 "$d"/*.sql | sed 's#^.*/##' > /tmp/all_${DOMAIN}.txt
+            grep -vxFf /tmp/applied_${DOMAIN}.txt /tmp/all_${DOMAIN}.txt > /tmp/pending_${DOMAIN}.txt || true
+
+            while read -r f; do
+              [ -z "$f" ] && continue
+              echo "[$DOMAIN] Applying $f"
+              SUM=$(sha256sum "$d/$f" | awk '{print $1}')
+              /opt/mssql-tools18/bin/sqlcmd -C -S "$HOST,$PORT" -d "$DB" -U "$USER" -P "$PASS" -l 30 -b -i "$d/$f"
+              /opt/mssql-tools18/bin/sqlcmd -C -S "$HOST,$PORT" -d "$DB" -U "$USER" -P "$PASS" -Q "INSERT INTO dbo.schema_version__${DOMAIN}(filename, checksum, applied_by) VALUES (N'$f', N'$SUM', N'${{ github.actor }}');"
+            done < /tmp/pending_${DOMAIN}.txt
+          done
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}

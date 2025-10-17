@@ -1,0 +1,19 @@
+{
+  "sit": {
+    "mssql": {
+      "onboarding": { "host": "mssql-dev", "port": "1433", "db": "STG_DEV", "user": "sa", "password": "****", "source_system_prefix": "BravoLOS" },
+      "collection": { "host": "mssql-dev", "port": "1433", "db": "STG_DEV", "user": "sa", "password": "****", "source_system_prefix": "Salesforce" },
+      "finance":    { "host": "mssql-dev", "port": "1433", "db": "STG_DEV", "user": "sa", "password": "****", "source_system_prefix": "LMS" }
+    },
+    "hologres": { "host": "holo-dev", "port": "5432", "db": "dev", "schema": "bravo_sit", "user": "holo", "password": "****" },
+    "trino":    { "host": "trino-dev", "port": "8080", "catalog": "hive", "schema": "raw_data_dev_cloud", "user": "trino", "password": "" }
+  },
+  "bau": {
+    "mssql": {
+      "onboarding": { "host": "mssql-prod", "port": "1433", "db": "STG_PROD", "user": "sa", "password": "****", "source_system_prefix": "BravoLOS" }
+    },
+    "hologres": { "host": "holo-prod", "port": "5432", "db": "prod", "schema": "bravo_bau", "user": "holo", "password": "****" },
+    "trino":    { "host": "trino-prod", "port": "8080", "catalog": "hive", "schema": "raw_data_prod_cloud", "user": "trino", "password": "" }
+  },
+  "odps": { "project": "wsbfi_3", "endpoint": "http://service.ap-southeast-5.maxcompute.aliyun.com/api", "access_key": "AKID", "secret_key": "AKSECRET" }
+}

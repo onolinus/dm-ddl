@@ -1,0 +1,47 @@
+name: Deploy Trino
+on: { push: { branches: [ dev, main ] } }
+
+jobs:
+  trino:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y jq curl
+      - run: curl -L -o trino https://repo1.maven.org/maven2/io/trino/trino-cli/454/trino-cli-454-executable.jar && chmod +x trino && sudo mv trino /usr/local/bin/trino
+      - name: Determine ENV
+        id: envmap
+        run: echo "ENV=$([ '${{ github.ref_name }}' = 'main' ] && echo bau || echo sit)" >> $GITHUB_OUTPUT
+      - name: Load config
+        run: echo '${{ secrets.DB_CONFIG_JSON }}' > /tmp/db.json
+      - name: Lint Trino
+        run: pip install sqlfluff && sqlfluff lint --dialect trino migrations/trino/${{ steps.envmap.outputs.ENV }}/
+      - name: Deploy per domain
+        shell: bash
+        run: |
+          set -e
+          ENV="${{ steps.envmap.outputs.ENV }}"
+          HOST=$(jq -r "."$ENV".trino.host" /tmp/db.json)
+          PORT=$(jq -r "."$ENV".trino.port" /tmp/db.json)
+          CATALOG=$(jq -r "."$ENV".trino.catalog" /tmp/db.json)
+          SCHEMA=$(jq -r "."$ENV".trino.schema" /tmp/db.json)
+          USER=$(jq -r "."$ENV".trino.user" /tmp/db.json)
+
+          for d in migrations/trino/$ENV/*/ ; do
+            DOMAIN=$(basename "$d")
+
+            trino --server "$HOST:$PORT" --user "$USER" --catalog "$CATALOG" --schema "$SCHEMA"               -e "CREATE TABLE IF NOT EXISTS schema_version__${DOMAIN} (filename VARCHAR, checksum VARCHAR, applied_at TIMESTAMP, applied_by VARCHAR)"
+
+            trino --server "$HOST:$PORT" --user "$USER" --catalog "$CATALOG" --schema "$SCHEMA"               -e "SET SESSION output_format='CSV'; SELECT filename FROM schema_version__${DOMAIN}" | tail -n +2 > /tmp/applied_${DOMAIN}.txt || true
+            ls -1 "$d"/*.sql | sed 's#^.*/##' > /tmp/all_${DOMAIN}.txt
+            grep -vxFf /tmp/applied_${DOMAIN}.txt /tmp/all_${DOMAIN}.txt > /tmp/pending_${DOMAIN}.txt || true
+
+            while read -r f; do
+              [ -z "$f" ] && continue
+              echo "[$DOMAIN] Applying $f"
+              SUM=$(sha256sum "$d/$f" | awk '{print $1}')
+              trino --server "$HOST:$PORT" --user "$USER" --catalog "$CATALOG" --schema "$SCHEMA" -f "$d/$f"
+              trino --server "$HOST:$PORT" --user "$USER" --catalog "$CATALOG" --schema "$SCHEMA"                 -e "INSERT INTO schema_version__${DOMAIN} VALUES ('$f', '$SUM', current_timestamp, '${{ github.actor }}')"
+            done < /tmp/pending_${DOMAIN}.txt
+          done
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}

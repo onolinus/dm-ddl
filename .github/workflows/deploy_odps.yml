@@ -1,0 +1,47 @@
+name: Deploy ODPS
+on: { push: { branches: [ dev, main ] } }
+
+jobs:
+  odps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y jq unzip curl
+      - run: curl -L -o odpscmd.zip https://repo.aliyun.com/odps/odpscmd-latest.zip && unzip odpscmd.zip -d odpscmd && echo "$GITHUB_WORKSPACE/odpscmd/bin" >> $GITHUB_PATH
+      - name: Load config
+        run: echo '${{ secrets.DB_CONFIG_JSON }}' > /tmp/db.json
+      - name: Lint ODPS
+        run: pip install sqlfluff && sqlfluff lint --dialect ansi migrations/odps/wsbfi_3/
+      - name: Deploy per domain
+        shell: bash
+        run: |
+          set -e
+          ENDPOINT=$(jq -r ".odps.endpoint" /tmp/db.json)
+          PROJECT=$(jq -r ".odps.project" /tmp/db.json)
+          AK=$(jq -r ".odps.access_key" /tmp/db.json)
+          SK=$(jq -r ".odps.secret_key" /tmp/db.json)
+          printf "[odps]
+endpoint=%s
+project=%s
+access_id=%s
+access_key=%s
+" "$ENDPOINT" "$PROJECT" "$AK" "$SK" > ~/.odps_config.ini
+
+          for d in migrations/odps/wsbfi_3/*/ ; do
+            DOMAIN=$(basename "$d")
+
+            odpscmd -e "CREATE TABLE IF NOT EXISTS schema_version__${DOMAIN} (filename STRING, checksum STRING, applied_at DATETIME, applied_by STRING);"
+            odpscmd -e "set odps.sql.select.output.format=PlainText; SELECT filename FROM schema_version__${DOMAIN};" | sed '1,2d' | sed '/^$/d' > /tmp/applied_${DOMAIN}.txt || true
+            ls -1 "$d"/*.sql | sed 's#^.*/##' > /tmp/all_${DOMAIN}.txt
+            grep -vxFf /tmp/applied_${DOMAIN}.txt /tmp/all_${DOMAIN}.txt > /tmp/pending_${DOMAIN}.txt || true
+
+            while read -r f; do
+              [ -z "$f" ] && continue
+              echo "[$DOMAIN] Applying $f"
+              SUM=$(sha256sum "$d/$f" | awk '{print $1}')
+              odpscmd -f "$d/$f"
+              odpscmd -e "INSERT INTO schema_version__${DOMAIN} VALUES ('$f', '$SUM', CURRENT_TIMESTAMP, '${{ github.actor }}');"
+            done < /tmp/pending_${DOMAIN}.txt
+          done
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}

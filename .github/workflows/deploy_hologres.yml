@@ -1,0 +1,47 @@
+name: Deploy Hologres
+on: { push: { branches: [ dev, main ] } }
+
+jobs:
+  holo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client jq
+      - name: Determine ENV
+        id: envmap
+        run: echo "ENV=$([ '${{ github.ref_name }}' = 'main' ] && echo bau || echo sit)" >> $GITHUB_OUTPUT
+      - name: Load config
+        run: echo '${{ secrets.DB_CONFIG_JSON }}' > /tmp/db.json
+      - name: Lint Hologres
+        run: pip install sqlfluff && sqlfluff lint --dialect postgres migrations/hologres/${{ steps.envmap.outputs.ENV }}/
+      - name: Deploy per domain
+        shell: bash
+        run: |
+          set -e
+          ENV="${{ steps.envmap.outputs.ENV }}"
+          HOLO_HOST=$(jq -r "."$ENV".hologres.host" /tmp/db.json)
+          HOLO_PORT=$(jq -r "."$ENV".hologres.port" /tmp/db.json)
+          HOLO_DB=$(jq -r "."$ENV".hologres.db" /tmp/db.json)
+          HOLO_USER=$(jq -r "."$ENV".hologres.user" /tmp/db.json)
+          HOLO_PASS=$(jq -r "."$ENV".hologres.password" /tmp/db.json)
+          SCHEMA=$(jq -r "."$ENV".hologres.schema" /tmp/db.json)
+
+          for d in migrations/hologres/$ENV/*/ ; do
+            DOMAIN=$(basename "$d")
+
+            PGPASSWORD="$HOLO_PASS" psql "host=$HOLO_HOST port=$HOLO_PORT dbname=$HOLO_DB user=$HOLO_USER sslmode=require"               -v schema="$SCHEMA" -v domain="$DOMAIN" -f bootstrap/hologres_bootstrap.sql
+
+            PGPASSWORD="$HOLO_PASS" psql "host=$HOLO_HOST port=$HOLO_PORT dbname=$HOLO_DB user=$HOLO_USER sslmode=require" -t -c "SELECT filename FROM ${SCHEMA}.schema_version__${DOMAIN};" > /tmp/applied_${DOMAIN}.txt || true
+            ls -1 "$d"/*.sql | sed 's#^.*/##' > /tmp/all_${DOMAIN}.txt
+            grep -vxFf /tmp/applied_${DOMAIN}.txt /tmp/all_${DOMAIN}.txt > /tmp/pending_${DOMAIN}.txt || true
+
+            while read -r f; do
+              [ -z "$f" ] && continue
+              echo "[$DOMAIN] Applying $f"
+              SUM=$(sha256sum "$d/$f" | awk '{print $1}')
+              PGPASSWORD="$HOLO_PASS" psql "host=$HOLO_HOST port=$HOLO_PORT dbname=$HOLO_DB user=$HOLO_USER sslmode=require" -v ON_ERROR_STOP=1 -f "$d/$f"
+              PGPASSWORD="$HOLO_PASS" psql "host=$HOLO_HOST port=$HOLO_PORT dbname=$HOLO_DB user=$HOLO_USER sslmode=require" -c "INSERT INTO ${SCHEMA}.schema_version__${DOMAIN}(filename, checksum, applied_by) VALUES ('$f','$SUM','${{ github.actor }}')"
+            done < /tmp/pending_${DOMAIN}.txt
+          done
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
