@@ -1,0 +1,43 @@
+CREATE TABLE IF NOT EXISTS wsbfi_3_dev.ar_agrmnt_acc_mnt_raw_today_odps
+(
+    agrmnt_acc_mnt_id         BIGINT
+    ,agrmnt_id                BIGINT
+    ,inst_due_amt             DOUBLE
+    ,inst_due_paid_amt        DOUBLE
+    ,inst_due_waived_amt      DOUBLE
+    ,lc_inst_amt              DOUBLE
+    ,lc_inst_paid_amt         DOUBLE
+    ,lc_inst_waived_amt       DOUBLE
+    ,charge_rcv_amt           DOUBLE
+    ,charge_rcv_paid_amt      DOUBLE
+    ,charge_rcv_waived_amt    DOUBLE
+    ,prepaid_amt              DOUBLE
+    ,na_amt                   DOUBLE
+    ,na_paid_amt              DOUBLE
+    ,na_waived_amt            DOUBLE
+    ,na_dt                    DATE
+    ,wo_amt                   DOUBLE
+    ,wo_paid_amt              DOUBLE
+    ,wo_waived_amt            DOUBLE
+    ,wo_dt                    DATE
+    ,lc_inst_adm_fee_amt      DOUBLE
+    ,lc_inst_adm_fee_paid_amt DOUBLE
+    ,lc_inst_adm_fee_waived   DOUBLE
+    ,rrd_dt                   DATE
+    ,is_ol_pay_generated      BOOLEAN
+    ,usr_crt                  VARCHAR(50)
+    ,usr_upd                  VARCHAR(50)
+    ,dtm_crt                  DATETIME
+    ,dtm_upd                  DATETIME
+    ,integrity_value          VARCHAR(500)
+    ,deal_amt                 DOUBLE
+    ,debt_frgv_no             VARCHAR(100)
+    ,na_no                    VARCHAR(100)
+    ,rem_deal_amt_no          VARCHAR(100)
+    ,wo_no                    VARCHAR(100)
+    ,source_ts_ms             DATETIME
+    ,operation_ts_ms          DATETIME
+    ,is_deleted               BOOLEAN
+    ,op                       VARCHAR(5)
+    ,inserted_date            DATETIME
+) STORED AS ALIORC TBLPROPERTIES ('columnar.nested.type'='true', 'comment'='ar_agrmnt_acc_mnt');

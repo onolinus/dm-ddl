@@ -1,0 +1,46 @@
+CREATE TABLE IF NOT EXISTS wsbfi_3_dev.ar_agrmnt_other_info_raw_today_odps
+(
+    agrmnt_other_info_id          BIGINT
+    ,agrmnt_id                    BIGINT
+    ,marketing_no                 VARCHAR(50)
+    ,legal_addr                   VARCHAR(1000)
+    ,legal_rt                     VARCHAR(50)
+    ,legal_rw                     VARCHAR(50)
+    ,legal_kelurahan              VARCHAR(50)
+    ,legal_kecamatan              VARCHAR(50)
+    ,legal_city                   VARCHAR(50)
+    ,legal_zipcode                VARCHAR(50)
+    ,mailing_addr                 VARCHAR(1000)
+    ,mailing_rt                   VARCHAR(50)
+    ,mailing_rw                   VARCHAR(50)
+    ,mailing_kelurahan            VARCHAR(50)
+    ,mailing_kecematan            VARCHAR(50)
+    ,mailing_city                 VARCHAR(50)
+    ,mailing_zipcode              VARCHAR(50)
+    ,mailing_phn_area_1           VARCHAR(50)
+    ,mailing_phn_1                VARCHAR(50)
+    ,mailing_phn_ext_1            VARCHAR(50)
+    ,mailing_phn_area_2           VARCHAR(50)
+    ,mailing_phn_2                VARCHAR(50)
+    ,mailing_phn_ext_2            VARCHAR(50)
+    ,mailing_fax_area             VARCHAR(50)
+    ,mailing_fax                  VARCHAR(50)
+    ,mailing_phn_area_3           VARCHAR(50)
+    ,mailing_phn_3                VARCHAR(50)
+    ,mailing_phn_ext_3            VARCHAR(50)
+    ,person_cntct                 VARCHAR(100)
+    ,mr_cust_relationship_code    VARCHAR(50)
+    ,is_mail_phn1_success_contact BOOLEAN
+    ,mr_cust_notify_opt_code      VARCHAR(50)
+    ,marketing_head_no            STRING
+    ,usr_crt                      VARCHAR(50)
+    ,usr_upd                      VARCHAR(50)
+    ,dtm_crt                      DATETIME
+    ,dtm_upd                      DATETIME
+    ,integrity_value              VARCHAR(500)
+    ,source_ts_ms                 DATETIME
+    ,operation_ts_ms              DATETIME
+    ,is_deleted                   BOOLEAN
+    ,op                           VARCHAR(5)
+    ,inserted_date                DATETIME
+) STORED AS ALIORC TBLPROPERTIES ('columnar.nested.type'='true', 'comment'='ar_agrmnt_other_info');
