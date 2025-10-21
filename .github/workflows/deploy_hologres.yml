@@ -1,5 +1,5 @@
 name: Deploy Hologres
-on: { push: { branches: [ dev, main ] } }
+on: { push: { branches: [ dev, master ] } }
 
 jobs:
   holo:
@@ -9,7 +9,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client jq
       - name: Determine ENV
         id: envmap
-        run: echo "ENV=$([ '${{ github.ref_name }}' = 'main' ] && echo bau || echo sit)" >> $GITHUB_OUTPUT
+        run: echo "ENV=$([ '${{ github.ref_name }}' = 'master' ] && echo bau || echo sit)" >> $GITHUB_OUTPUT
       - name: Load config
         run: echo '${{ secrets.DB_CONFIG_JSON }}' > /tmp/db.json
       - name: Lint Hologres
@@ -44,4 +44,4 @@ jobs:
             done < /tmp/pending_${DOMAIN}.txt
           done
     environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+      name: ${{ github.ref_name == 'master' && 'production' || 'development' }}
