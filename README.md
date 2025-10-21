@@ -3,8 +3,8 @@
 This repo manages DDL for MSSQL, Hologres, ODPS (MaxCompute), and Trino with **migration-based** workflows using **GitHub Actions**.
 
 ## Environments & Mapping
-- `dev` branch → **sit** environment
-- `main` branch → **bau** (production) environment
+- `dev` branch → **sit/bau** environment
+- `main` branch → **bau/prod** (production) environment
 - ODPS uses a single project (`wsbfi_3`) without sit/bau split.
 
 ## Domains (examples included)
