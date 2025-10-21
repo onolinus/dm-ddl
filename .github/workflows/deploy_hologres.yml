@@ -1,5 +1,11 @@
 name: Deploy Hologres
-on: { push: { branches: [ dev, master ] } }
+on:
+  push:
+    branches:
+      - dev
+      - master
+  workflow_dispatch:
+       
 
 jobs:
   holo:
